@@ -7,6 +7,32 @@ import xarray as xr
 from torch.utils.data import Dataset
 
 
+_MEDIAN_PIXEL = 216.0
+_IQR = 201.0
+
+def transform(x):
+    return (x - _MEDIAN_PIXEL) / _IQR
+
+
+# predetermined
+from sklearn.cluster import KMeans
+_KM = KMeans(n_clusters=4, random_state=7)
+_KM.cluster_centers_ = np.array([
+    [81.25423],
+    [192.11592],
+    [310.74716],
+    [484.8715],
+], dtype=np.float32
+)
+_KM._n_threads = 1
+
+def transform_y(y):
+    y = y.astype(np.float32)
+    y_grouped = _KM.predict(y.reshape(-1,1))
+    y_grouped = y_grouped.reshape(y.shape)
+    return y_grouped
+
+
 class ClimatehackDataset(Dataset):
     """ """
 
@@ -96,7 +122,10 @@ class ClimatehackDataset(Dataset):
         input_data = data[:12]
         target_data = data[12:]
 
-        return self._get_crop(input_data, target_data)
+        x, y = self._get_crop(input_data, target_data)
+        x = transform(x)
+        y_groups = transform_y(y)
+        return x, y_groups, y
 
     # def __iter__(self) -> Iterator[T_co]:
     #     start_hour = 9
