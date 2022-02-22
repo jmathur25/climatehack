@@ -127,6 +127,7 @@ class UTAE(nn.Module):
             mlp=[d_model, encoder_widths[-1]],
             return_att=True,
             d_k=d_k,
+            positional_encoding=False,
         )
         self.temporal_aggregator = Temporal_Aggregator(mode=agg_mode)
         # TODO: think more about this
