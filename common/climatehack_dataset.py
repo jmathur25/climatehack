@@ -5,33 +5,26 @@ from typing import Iterator, T_co
 import numpy as np
 import xarray as xr
 from torch.utils.data import Dataset
-
-
-_MEDIAN_PIXEL = 216.0
-_IQR = 201.0
-
-def transform(x):
-    return (x - _MEDIAN_PIXEL) / _IQR
-
-
-# predetermined
 from sklearn.cluster import KMeans
-_KM = KMeans(n_clusters=4, random_state=7)
-_KM.cluster_centers_ = np.array([
-    [81.25423],
-    [192.11592],
-    [310.74716],
-    [484.8715],
-], dtype=np.float32
-)
+
+
+_MEDIAN_PIXEL = 212.0
+_IQR = 213.0
+
+deltas = np.linspace(-2.0, 2.0, num=81).reshape(-1,1)
+_KM = KMeans()
+_KM.cluster_centers_ = deltas
 _KM._n_threads = 1
 
-def transform_y(y):
-    y = y.astype(np.float32)
+def transform(x):
+    return np.tanh((x - _MEDIAN_PIXEL) / _IQR)
+
+def transform_y(y, starter):
+    y = transform(y)
+    y = y - starter
     y_grouped = _KM.predict(y.reshape(-1,1))
     y_grouped = y_grouped.reshape(y.shape)
     return y_grouped
-
 
 class ClimatehackDataset(Dataset):
     """ """
@@ -64,30 +57,13 @@ class ClimatehackDataset(Dataset):
         total_days = (self.max_date - self.min_date).days
         self.days = np.arange(total_days)
 
-    def _random_image_times(self, start_hour, end_hour):
-        total_days = (self.max_date - self.min_date).days
-        shuffled_days = np.arange(total_days)
-        self.generator.shuffle(shuffled_days)
-
-        # make 2 choices per day
-        middle = (end_hour - start_hour) // 2 + start_hour
-        for day in shuffled_days:
-            date = self.min_date + datetime.timedelta(days=int(day))
-            hour1 = self.generator.randint(start_hour, middle + 1)
-            hour2 = self.generator.randint(middle + 1, end_hour + 1)
-            hour1 = datetime.time(hour1)
-            hour2 = datetime.time(hour2)
-
-            current_time = datetime.datetime.combine(date, hour1)
-            yield current_time
-
-            current_time = datetime.datetime.combine(date, hour2)
-            yield current_time
-
     def _get_crop(self, input_slice, target_slice):
         # roughly over the mainland UK
-        rand_x = self.generator.randint(550, 950 - 128)
-        rand_y = self.generator.randint(375, 700 - 128)
+#         rand_x = self.generator.randint(550, 950 - 128)
+#         rand_y = self.generator.randint(375, 700 - 128)
+        _, h, w = input_slice.shape
+        rand_x = self.generator.randint(0, w - 128)
+        rand_y = self.generator.randint(0, h - 128)
 
         # make a data selection
         in_crop = input_slice[:, rand_y : rand_y + 128, rand_x : rand_x + 128]
@@ -124,8 +100,31 @@ class ClimatehackDataset(Dataset):
 
         x, y = self._get_crop(input_data, target_data)
         x = transform(x)
-        y_groups = transform_y(y)
-        return x, y_groups, y
+        x_last = x[-1]
+        x = x - x_last
+        y_groups = transform_y(y, x_last[32:96,32:96])
+        return x, y_groups, x_last, y
+    
+    
+#     def _random_image_times(self, start_hour, end_hour):
+#         total_days = (self.max_date - self.min_date).days
+#         shuffled_days = np.arange(total_days)
+#         self.generator.shuffle(shuffled_days)
+
+#         # make 2 choices per day
+#         middle = (end_hour - start_hour) // 2 + start_hour
+#         for day in shuffled_days:
+#             date = self.min_date + datetime.timedelta(days=int(day))
+#             hour1 = self.generator.randint(start_hour, middle + 1)
+#             hour2 = self.generator.randint(middle + 1, end_hour + 1)
+#             hour1 = datetime.time(hour1)
+#             hour2 = datetime.time(hour2)
+
+#             current_time = datetime.datetime.combine(date, hour1)
+#             yield current_time
+
+#             current_time = datetime.datetime.combine(date, hour2)
+#             yield current_time
 
     # def __iter__(self) -> Iterator[T_co]:
     #     start_hour = 9
