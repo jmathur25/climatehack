@@ -1,23 +1,38 @@
 import numpy as np
 import torch
+import cv2
 
 from climatehack import BaseEvaluator
-import metnet
-import torch
+
+import sys
+
+sys.path.append("./dgmr")
+import dgmr
 
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-_MAX_PIXEL = 1023
-_MEAN = 0.1787
+DEVICE = torch.device("cpu")
+
+_MEDIAN_PIXEL = 212.0
+_IQR = 213.0
 
 
 def transform(x):
-    return (x / _MAX_PIXEL) - _MEAN
+    return np.tanh((x - _MEDIAN_PIXEL) / _IQR)
 
 
 def inv_transform(x):
-    return (x + _MEAN) * _MAX_PIXEL
+    return torch.atanh(x) * _IQR + _MEDIAN_PIXEL
+
+
+def warp_flow(img, flow):
+    h, w = flow.shape[:2]
+    flow = -flow
+    flow[:, :, 0] += np.arange(w)
+    flow[:, :, 1] += np.arange(h)[:, np.newaxis]
+    res = cv2.remap(img, flow, None, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+    return res
 
 
 class Evaluator(BaseEvaluator):
@@ -26,16 +41,17 @@ class Evaluator(BaseEvaluator):
 
         In this case, it loads the trained model (in evaluation mode)."""
 
-        self.EXPECTED = 24
-        self.FORECAST = 10
-
-        model = metnet.MetNet(
-            hidden_dim=32,
-            forecast_steps=self.FORECAST,  # should be 24 timesteps out
-            input_channels=1,  # 12 timeteps in
-            output_channels=1,  # 1 data channel in
-            sat_channels=1,  # 1 data channel in
-            input_size=32,  # =128/4, where 128 is the image dimensions
+        model = dgmr.DGMR(
+            forecast_steps=24,
+            input_channels=1,
+            output_shape=128,
+            latent_channels=384,
+            context_channels=192,
+            num_samples=3,
+        )
+        model = model.to(DEVICE)
+        model.load_state_dict(
+            torch.load("weights/dgmr_epochs=6_loss=0.0471.pt", map_location=DEVICE)
         )
         self.model = model.to(DEVICE)
         self.model.eval()
@@ -50,30 +66,63 @@ class Evaluator(BaseEvaluator):
         Returns:
             np.ndarray: an array of 24 64*64 satellite image predictions (24, 64, 64)
         """
-
         assert coordinates.shape == (2, 128, 128)
         assert data.shape == (12, 128, 128)
 
-        data = torch.FloatTensor(transform(data)).to(DEVICE)
+        prediction_opt_flow = self._predict_opt_flow(data)
+        prediction_dgmr = self._predict_dgmr(coordinates, data)
+        # copy the opt flow predictions in
+        prediction_dgmr[: len(prediction_opt_flow)] = prediction_opt_flow
 
-        data = data.unsqueeze(data, dim=0)
-        data = data.unsqueeze(data, dim=2)
-        with torch.no_grad():
-            preds = self.model(data)
-
-        # remove the batch and satellite channel dimension from the prediction
-        preds = torch.squeeze(preds)
-        preds = inv_transform(preds)
-
-        missing = self.EXPECTED - self.FORECAST
-        # just do persistence for the missing
-        missing_pred = inv_transform(data[:, -1, :, 32:96, 32:96])
-        missing_pred = torch.squeeze(missing_pred)
-        missing_pred = torch.tile(missing_pred, (missing, 1, 1))
-        # stack them together
-        prediction = torch.cat([preds, missing_pred], dim=0)
-
+        prediction = prediction_dgmr
         assert prediction.shape == (24, 64, 64)
+        return prediction
+
+    def _predict_dgmr(self, coordinates: np.ndarray, data: np.ndarray) -> np.ndarray:
+
+        final_layer = torch.nn.AvgPool2d(kernel_size=2)
+
+        data = data[-4:]
+        data = torch.FloatTensor(transform(data)).float().to(DEVICE)
+        data = torch.unsqueeze(data, dim=0)
+        data = torch.unsqueeze(data, dim=2)
+        with torch.no_grad():
+            prediction = self.model(data)
+
+        b, t, c, h, w = prediction.shape
+        prediction = prediction.reshape(b, t * c, h, w)
+        prediction = final_layer(prediction)
+        prediction = prediction.reshape(
+            b, t, c, prediction.shape[-2], prediction.shape[-1]
+        )
+        prediction = torch.tanh(prediction)
+        prediction = inv_transform(prediction)
+        prediction = np.squeeze(prediction.numpy())
+
+        return prediction
+
+    def _predict_opt_flow(self, data: np.ndarray) -> np.ndarray:
+        test_params = {
+            "pyr_scale": 0.5,
+            "levels": 2,
+            "winsize": 40,
+            "iterations": 3,
+            "poly_n": 5,
+            "poly_sigma": 0.7,
+        }
+        forecast = 6
+        prediction = np.zeros((forecast, 64, 64), dtype=np.float32)
+        cur = data[-1].astype(np.float32)
+        flow = cv2.calcOpticalFlowFarneback(
+            prev=data[-2],
+            next=data[-1],
+            flow=None,
+            **test_params,
+            flags=cv2.OPTFLOW_FARNEBACK_GAUSSIAN,
+        )
+        for i in range(forecast):
+            cur = warp_flow(cur, flow)
+            prediction[i] = cur[32:96, 32:96]
         return prediction
 
 
