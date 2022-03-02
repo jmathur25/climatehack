@@ -51,7 +51,7 @@ class Evaluator(BaseEvaluator):
         )
         model = model.to(DEVICE)
         model.load_state_dict(
-            torch.load("weights/dgmr_epochs=6_loss=0.0471.pt", map_location=DEVICE)
+            torch.load("weights/model.pt", map_location=DEVICE)
         )
         self.model = model.to(DEVICE)
         self.model.eval()
