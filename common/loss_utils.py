@@ -5,20 +5,16 @@ from pytorch_msssim import MS_SSIM
 
 class MS_SSIMLoss(nn.Module):
     """Multi-Scale SSIM Loss"""
-
-    def __init__(self, data_range, channels, **kwargs):
+    def __init__(self, data_range, channels=1, **kwargs):
         """
         Initialize
         Args:
+            convert_range: Convert input from -1,1 to 0,1 range
             **kwargs: Kwargs to pass through to MS_SSIM
         """
         super(MS_SSIMLoss, self).__init__()
         self.ssim_module = MS_SSIM(
-            data_range=data_range,
-            size_average=False,
-            win_size=3,
-            channel=channels,
-            **kwargs
+            data_range=data_range, size_average=True, win_size=3, channel=channels, **kwargs
         )
 
     def forward(self, x: torch.Tensor, y: torch.Tensor):
