@@ -66,26 +66,44 @@ class Evaluator(BaseEvaluator):
         #     latent_channels=384,
         #     context_channels=192,
         # )
+        # ccs = dgmr.common.ContextConditioningStack(
+        #     input_channels=1,
+        #     conv_type="standard",
+        #     output_channels=96,
+        # )
+
+        # lcs = dgmr.common.LatentConditioningStack(
+        #     shape=(4 * 1, 128 // 32, 128 // 32),
+        #     output_channels=192,
+        # )
+
+        # sampler = dgmr.generators.Sampler(
+        #     forecast_steps=24,
+        #     latent_channels=192,
+        #     context_channels=96,
+        # )
+        self.default_batch = torch.load("weights/default_batch.pt", map_location=DEVICE)
         ccs = dgmr.common.ContextConditioningStack(
             input_channels=1,
             conv_type="standard",
-            output_channels=96,
+            output_channels=144,  # 96
         )
 
         lcs = dgmr.common.LatentConditioningStack(
             shape=(4 * 1, 128 // 32, 128 // 32),
-            output_channels=192,
+            output_channels=288,  # 192
         )
 
         sampler = dgmr.generators.Sampler(
             forecast_steps=24,
-            latent_channels=192,
-            context_channels=96,
+            latent_channels=288,  # 192
+            context_channels=144,  # 96
         )
         model = dgmr.generators.Generator(ccs, lcs, sampler)
         model.load_state_dict(torch.load("weights/model.pt", map_location=DEVICE))
         self.model = model.to(DEVICE)
-        self.model.eval()
+        self.model.train()
+        # print("DOING TRAIN MODE")
 
     def predict(self, coordinates: np.ndarray, data: np.ndarray) -> np.ndarray:
         """Makes a prediction for the next two hours of satellite imagery.
@@ -108,26 +126,19 @@ class Evaluator(BaseEvaluator):
         return prediction
 
     def _predict_dgmr(self, coordinates: np.ndarray, data: np.ndarray) -> np.ndarray:
-
-        # final_layer = torch.nn.AvgPool2d(kernel_size=2)
-
         data = data[-4:]
         data = torch.FloatTensor(transform(data)).float().to(DEVICE)
         data = torch.unsqueeze(data, dim=0)
         data = torch.unsqueeze(data, dim=2)
+        # make a batch to help with norm
+        data = torch.cat([data, self.default_batch], dim=0)
         with torch.no_grad():
             prediction = self.model(data)
-
-        # b, t, c, h, w = prediction.shape
-        # prediction = prediction.reshape(b, t * c, h, w)
-        # prediction = final_layer(prediction)
-        # prediction = prediction.reshape(
-        #     b, t, c, prediction.shape[-2], prediction.shape[-1]
-        # )
-        # prediction = torch.tanh(prediction)
-        # prediction = inv_transform(prediction)
+        # grab first entry cause that's the real prediction
+        prediction = prediction[:1]
         prediction = inv_transform(prediction[:, :, :, 32:96, 32:96])
         prediction = np.squeeze(prediction.numpy())
+        # prediction = np.squeeze(prediction.detach().cpu().numpy())
 
         return prediction
 

@@ -1,6 +1,7 @@
 import numpy as np
 from pytorch_msssim import MS_SSIM
 from torch import from_numpy
+import tqdm
 
 from evaluate import Evaluator
 
@@ -17,7 +18,10 @@ def main():
             from_numpy(evaluator.predict(*datum)).view(24, 64, 64).unsqueeze(dim=1),
             from_numpy(target).view(24, 64, 64).unsqueeze(dim=1),
         ).item()
-        for *datum, target in zip(features["osgb"], features["data"], targets["data"])
+        for *datum, target in tqdm.tqdm(
+            zip(features["osgb"], features["data"], targets["data"]),
+            total=len(features["data"]),
+        )
     ]
 
     print(f"Score: {np.mean(scores)} ({np.std(scores)})")
