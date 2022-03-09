@@ -67,8 +67,19 @@ class BaseEvaluator:
         Returns:
             List[np.ndarray]: The predictions.
         """
+        batch_size = 16
+        split_num = len(group["data"]) // batch_size
+        osgb_splits = np.array_split(group["osgb"], split_num, axis=0)
+        data_splits = np.array_split(group["data"], split_num, axis=0)
 
-        return [self.predict(*datum) for datum in zip(group["osgb"], group["data"])]
+        all_preds = []
+        for (osgb, data) in zip(osgb_splits, data_splits):
+            bs = len(data)
+            preds = self.predict(osgb, data)
+            for b in range(bs):
+                all_preds.append(preds[b])
+        return all_preds
+        # return [self.predict(*datum) for datum in zip(group["osgb"], group["data"])]
 
     def evaluate(self):
         """Evaluates the user's model on DOXA.
