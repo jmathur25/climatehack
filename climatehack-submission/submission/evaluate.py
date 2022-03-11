@@ -6,27 +6,22 @@ from climatehack import BaseEvaluator
 
 import sys
 
-sys.path.append("./dgmr-mod")
+# sys.path.append("./dgmr-mod")
+sys.path.append("./dgmr")
 import dgmr
 
-
+DEVICE = torch.device("cpu")
 # DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-DEVICE = torch.device("cpu")
-
-# _MEDIAN_PIXEL = 212.0
-# _IQR = 213.0
 _MEAN_PIXEL = 240.3414
 _STD_PIXEL = 146.52366
 
 
 def transform(x):
-    # return np.tanh((x - _MEDIAN_PIXEL) / _IQR)
     return (x - _MEAN_PIXEL) / _STD_PIXEL
 
 
 def inv_transform(x):
-    # return torch.atanh(x) * _IQR + _MEDIAN_PIXEL
     return (x * _STD_PIXEL) + _MEAN_PIXEL
 
 
@@ -43,29 +38,22 @@ class Evaluator(BaseEvaluator):
     def setup(self):
         """Sets up anything required for evaluation.
         In this case, it loads the trained model (in evaluation mode)."""
+        ccs = dgmr.common.ContextConditioningStack(
+            input_channels=1,
+            conv_type="standard",
+            output_channels=192,
+        )
 
-        # model = dgmr.DGMR(
-        #     forecast_steps=24,
-        #     input_channels=1,
-        #     output_shape=128,
-        #     latent_channels=384,
-        #     context_channels=192,
-        #     num_samples=3,
-        # )
-        # ccs = dgmr.common.ContextConditioningStack(
-        #     input_channels=1,
-        #     conv_type="standard",
-        #     output_channels=192,
-        # )
-        # lcs = dgmr.common.LatentConditioningStack(
-        #     shape=(8 * 1, 128 // 32, 128 // 32),
-        #     output_channels=384,
-        # )
-        # sampler = dgmr.generators.Sampler(
-        #     forecast_steps=24,
-        #     latent_channels=384,
-        #     context_channels=192,
-        # )
+        lcs = dgmr.common.LatentConditioningStack(
+            shape=(8 * 1, 128 // 32, 128 // 32),
+            output_channels=384,
+        )
+
+        sampler = dgmr.generators.Sampler(
+            forecast_steps=24,
+            latent_channels=384,
+            context_channels=192,
+        )
         # ccs = dgmr.common.ContextConditioningStack(
         #     input_channels=1,
         #     conv_type="standard",
@@ -83,22 +71,22 @@ class Evaluator(BaseEvaluator):
         #     context_channels=96,
         # )
         # self.default_batch = torch.load("weights/default_batch.pt", map_location=DEVICE)
-        ccs = dgmr.common.ContextConditioningStack(
-            input_channels=1,
-            conv_type="standard",
-            output_channels=144,  # 96
-        )
+        # ccs = dgmr.common.ContextConditioningStack(
+        #     input_channels=1,
+        #     conv_type="standard",
+        #     output_channels=144,  # 96
+        # )
 
-        lcs = dgmr.common.LatentConditioningStack(
-            shape=(4 * 1, 128 // 32, 128 // 32),
-            output_channels=288,  # 192
-        )
+        # lcs = dgmr.common.LatentConditioningStack(
+        #     shape=(4 * 1, 128 // 32, 128 // 32),
+        #     output_channels=288,  # 192
+        # )
 
-        sampler = dgmr.generators.Sampler(
-            forecast_steps=24,
-            latent_channels=288,  # 192
-            context_channels=144,  # 96
-        )
+        # sampler = dgmr.generators.Sampler(
+        #     forecast_steps=24,
+        #     latent_channels=288,  # 192
+        #     context_channels=144,  # 96
+        # )
         model = dgmr.generators.Generator(ccs, lcs, sampler)
         model.load_state_dict(torch.load("weights/model.pt", map_location=DEVICE))
         self.model = model.to(DEVICE)
@@ -131,14 +119,15 @@ class Evaluator(BaseEvaluator):
             prediction = self.model(data)
         # remove the satellite dimension and grab the inner 64x64
         prediction = inv_transform(prediction[:, :, 0, 32:96, 32:96])
-        prediction = prediction.numpy()
-        # prediction = np.squeeze(prediction.detach().cpu().numpy())
-
+        if prediction.device == "cpu":
+            prediction = prediction.numpy()
+        else:
+            prediction = prediction.detach().cpu().numpy()
         return prediction
 
     def _predict_opt_flow(self, data: np.ndarray) -> np.ndarray:
         bs = data.shape[0]
-        forecast = 3
+        forecast = 1
         prediction = np.zeros((bs, forecast, 64, 64), dtype=np.float32)
         test_params = {
             "pyr_scale": 0.5,
