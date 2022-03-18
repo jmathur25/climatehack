@@ -109,6 +109,7 @@ class Evaluator(BaseEvaluator):
         return prediction
 
     def _predict_dgmr(self, coordinates: np.ndarray, data: np.ndarray) -> np.ndarray:
+        bs = data.shape[0]
         data = data[:, -4:]
         data = torch.FloatTensor(transform(data)).float().to(DEVICE)
         # add a satellite dimension
