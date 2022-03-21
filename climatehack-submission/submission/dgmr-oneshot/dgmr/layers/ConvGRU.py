@@ -6,7 +6,9 @@ from torch.nn.utils.parametrizations import spectral_norm
 class ConvGRUCell(torch.nn.Module):
     """A ConvGRU implementation."""
 
-    def __init__(self, input_channels: int, output_channels: int, kernel_size=3, sn_eps=0.0001):
+    def __init__(
+        self, input_channels: int, output_channels: int, kernel_size=3, sn_eps=0.0001
+    ):
         """Constructor.
 
         Args:

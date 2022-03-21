@@ -6,8 +6,7 @@ from climatehack import BaseEvaluator
 
 import sys
 
-# sys.path.append("./dgmr-mod")
-sys.path.append("./dgmr")
+sys.path.append("./dgmr-oneshot")
 import dgmr
 
 DEVICE = torch.device("cpu")
@@ -41,53 +40,16 @@ class Evaluator(BaseEvaluator):
         ccs = dgmr.common.ContextConditioningStack(
             input_channels=1,
             conv_type="standard",
-            output_channels=192,
-        )
-
-        lcs = dgmr.common.LatentConditioningStack(
-            shape=(8 * 1, 128 // 32, 128 // 32),
-            output_channels=384,
+            output_channels=160,
         )
 
         sampler = dgmr.generators.Sampler(
             forecast_steps=24,
-            latent_channels=384,
-            context_channels=192,
+            latent_channels=96,
+            context_channels=160,
+            output_channels=1,
         )
-        # ccs = dgmr.common.ContextConditioningStack(
-        #     input_channels=1,
-        #     conv_type="standard",
-        #     output_channels=96,
-        # )
-
-        # lcs = dgmr.common.LatentConditioningStack(
-        #     shape=(4 * 1, 128 // 32, 128 // 32),
-        #     output_channels=192,
-        # )
-
-        # sampler = dgmr.generators.Sampler(
-        #     forecast_steps=24,
-        #     latent_channels=192,
-        #     context_channels=96,
-        # )
-        # self.default_batch = torch.load("weights/default_batch.pt", map_location=DEVICE)
-        # ccs = dgmr.common.ContextConditioningStack(
-        #     input_channels=1,
-        #     conv_type="standard",
-        #     output_channels=144,  # 96
-        # )
-
-        # lcs = dgmr.common.LatentConditioningStack(
-        #     shape=(4 * 1, 128 // 32, 128 // 32),
-        #     output_channels=288,  # 192
-        # )
-
-        # sampler = dgmr.generators.Sampler(
-        #     forecast_steps=24,
-        #     latent_channels=288,  # 192
-        #     context_channels=144,  # 96
-        # )
-        model = dgmr.generators.Generator(ccs, lcs, sampler)
+        model = dgmr.generators.Generator(ccs, sampler)
         model.load_state_dict(torch.load("weights/model.pt", map_location=DEVICE))
         self.model = model.to(DEVICE)
         self.model.train()
@@ -101,10 +63,10 @@ class Evaluator(BaseEvaluator):
         Returns:
             np.ndarray: an array of 24 64*64 satellite image predictions (bs, 24, 64, 64)
         """
-        prediction_opt_flow = self._predict_opt_flow(data)
+        # prediction_opt_flow = self._predict_opt_flow(data)
         prediction_dgmr = self._predict_dgmr(coordinates, data)
         # copy the opt flow predictions in
-        prediction_dgmr[:, : prediction_opt_flow.shape[1]] = prediction_opt_flow
+        # prediction_dgmr[:, : prediction_opt_flow.shape[1]] = prediction_opt_flow
         prediction = prediction_dgmr
         return prediction
 

@@ -306,6 +306,7 @@ class ContextConditioningStack(torch.nn.Module, PyTorchModelHubMixin):
             input_channels: Number of input channels per timestep
             output_channels: Number of output channels for the lowest block
             conv_type: Type of 2D convolution to use, see satflow/models/utils.py for options
+            num_context_steps: number of images given as conditioning
         """
         super().__init__()
         config = locals()
@@ -389,32 +390,54 @@ class ContextConditioningStack(torch.nn.Module, PyTorchModelHubMixin):
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         # Each timestep processed separately
         x = self.space2depth(x)
-        steps = x.size(1)  # Number of timesteps
-        scale_1 = []
-        scale_2 = []
-        scale_3 = []
-        scale_4 = []
-        for i in range(steps):
-            s1 = self.d1(x[:, i, :, :, :])
-            s2 = self.d2(s1)
-            s3 = self.d3(s2)
-            s4 = self.d4(s3)
-            scale_1.append(s1)
-            scale_2.append(s2)
-            scale_3.append(s3)
-            scale_4.append(s4)
-        scale_1 = torch.stack(
-            scale_1, dim=1
-        )  # B, T, C, H, W and want along C dimension
-        scale_2 = torch.stack(
-            scale_2, dim=1
-        )  # B, T, C, H, W and want along C dimension
-        scale_3 = torch.stack(
-            scale_3, dim=1
-        )  # B, T, C, H, W and want along C dimension
-        scale_4 = torch.stack(
-            scale_4, dim=1
-        )  # B, T, C, H, W and want along C dimension
+        # steps = x.size(1)  # Number of timesteps
+        # scale_1 = []
+        # scale_2 = []
+        # scale_3 = []
+        # scale_4 = []
+        # for i in range(steps):
+        #     s1 = self.d1(x[:, i, :, :, :])
+        #     s2 = self.d2(s1)
+        #     s3 = self.d3(s2)
+        #     s4 = self.d4(s3)
+        #     scale_1.append(s1)
+        #     scale_2.append(s2)
+        #     scale_3.append(s3)
+        #     scale_4.append(s4)
+
+        # scale_1 = torch.stack(
+        #     scale_1, dim=1
+        # )  # B, T, C, H, W and want along C dimension
+        # scale_2 = torch.stack(
+        #     scale_2, dim=1
+        # )  # B, T, C, H, W and want along C dimension
+        # scale_3 = torch.stack(
+        #     scale_3, dim=1
+        # )  # B, T, C, H, W and want along C dimension
+        # scale_4 = torch.stack(
+        #     scale_4, dim=1
+        # )  # B, T, C, H, W and want along C dimension
+
+        # FASTER
+        b, t, c, h, w = x.shape
+        x = x.reshape(b * t, c, h, w)
+        scale_1 = self.d1(x)
+        scale_2 = self.d2(scale_1)
+        scale_3 = self.d3(scale_2)
+        scale_4 = self.d4(scale_3)
+        scale_1 = scale_1.reshape(
+            b, t, scale_1.shape[1], scale_1.shape[2], scale_1.shape[3]
+        )
+        scale_2 = scale_2.reshape(
+            b, t, scale_2.shape[1], scale_2.shape[2], scale_2.shape[3]
+        )
+        scale_3 = scale_3.reshape(
+            b, t, scale_3.shape[1], scale_3.shape[2], scale_3.shape[3]
+        )
+        scale_4 = scale_4.reshape(
+            b, t, scale_4.shape[1], scale_4.shape[2], scale_4.shape[3]
+        )
+
         # Mixing layer
         scale_1 = self._mixing_layer(scale_1, self.conv1)
         scale_2 = self._mixing_layer(scale_2, self.conv2)
@@ -425,6 +448,8 @@ class ContextConditioningStack(torch.nn.Module, PyTorchModelHubMixin):
     def _mixing_layer(self, inputs, conv_block):
         # Convert from [batch_size, time, h, w, c] -> [batch_size, h, w, c * time]
         # then perform convolution on the output while preserving number of c.
+        # Mixes the activations of different conditioning timesteps, which thus far
+        # have been independently processed
         stacked_inputs = einops.rearrange(inputs, "b t c h w -> b (c t) h w")
         return F.relu(conv_block(stacked_inputs))
 

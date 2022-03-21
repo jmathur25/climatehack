@@ -1,7 +1,74 @@
 import numpy as np
 import torch
 import torch.nn as nn
+from pytorch_msssim import SSIM, MS_SSIM
 from torch.nn import functional as F
+
+
+class SSIMLoss(nn.Module):
+    def __init__(self, convert_range: bool = False, **kwargs):
+        """
+        SSIM Loss, optionally converting input range from [-1,1] to [0,1]
+        Args:
+            convert_range:
+            **kwargs:
+        """
+        super(SSIMLoss, self).__init__()
+        self.convert_range = convert_range
+        self.ssim_module = SSIM(**kwargs)
+
+    def forward(self, x: torch.Tensor, y: torch.Tensor):
+        if self.convert_range:
+            x = torch.div(torch.add(x, 1), 2)
+            y = torch.div(torch.add(y, 1), 2)
+        return 1.0 - self.ssim_module(x, y)
+
+
+class MS_SSIMLoss(nn.Module):
+    def __init__(self, convert_range: bool = False, **kwargs):
+        """
+        Multi-Scale SSIM Loss, optionally converting input range from [-1,1] to [0,1]
+        Args:
+            convert_range:
+            **kwargs:
+        """
+        super(MS_SSIMLoss, self).__init__()
+        self.convert_range = convert_range
+        self.ssim_module = MS_SSIM(**kwargs)
+
+    def forward(self, x: torch.Tensor, y: torch.Tensor):
+        if self.convert_range:
+            x = torch.div(torch.add(x, 1), 2)
+            y = torch.div(torch.add(y, 1), 2)
+        return 1.0 - self.ssim_module(x, y)
+
+
+class SSIMLossDynamic(nn.Module):
+    def __init__(self, convert_range: bool = False, **kwargs):
+        """
+        SSIM Loss on only dynamic part of the images, optionally converting input range from [-1,1] to [0,1]
+
+        In Mathieu et al. to stop SSIM regressing towards the mean and predicting only the background, they only
+        run SSIM on the dynamic parts of the image. We can accomplish that by subtracting the current image from the future ones
+
+        Args:
+            convert_range:
+            **kwargs:
+        """
+        super(SSIMLossDynamic, self).__init__()
+        self.convert_range = convert_range
+        self.ssim_module = MS_SSIM(**kwargs)
+
+    def forward(self, curr_image: torch.Tensor, x: torch.Tensor, y: torch.Tensor):
+        if self.convert_range:
+            curr_image = torch.div(torch.add(curr_image, 1), 2)
+            x = torch.div(torch.add(x, 1), 2)
+            y = torch.div(torch.add(y, 1), 2)
+        # Subtract 'now' image to get what changes for both x and y
+        x = x - curr_image
+        y = y - curr_image
+        # TODO: Mask out loss from pixels that don't change
+        return 1.0 - self.ssim_module(x, y)
 
 
 def tv_loss(img, tv_weight):
@@ -171,9 +238,7 @@ class FocalLoss(nn.Module):
             one_hot_key = one_hot_key.to(logit.device)
 
         if self.smooth:
-            one_hot_key = torch.clamp(
-                one_hot_key, self.smooth / (num_class - 1), 1.0 - self.smooth
-            )
+            one_hot_key = torch.clamp(one_hot_key, self.smooth / (num_class - 1), 1.0 - self.smooth)
         pt = (one_hot_key * logit).sum(1) + self.smooth
         logpt = pt.log()
 
