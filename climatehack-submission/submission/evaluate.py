@@ -9,8 +9,8 @@ import sys
 sys.path.append("./dgmr-oneshot")
 import dgmr
 
-DEVICE = torch.device("cpu")
-# DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# DEVICE = torch.device("cpu")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 _MEAN_PIXEL = 240.3414
 _STD_PIXEL = 146.52366
