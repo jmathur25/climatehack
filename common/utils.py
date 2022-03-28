@@ -1,3 +1,10 @@
+"""
+Contains a bunch of functions that we use throughout this repo.
+
+If you run this file directly with `python utils.py`, it runs a 
+test on the DCT/IDCT filters.
+"""
+
 import pyproj
 from scipy import fftpack
 import numpy as np

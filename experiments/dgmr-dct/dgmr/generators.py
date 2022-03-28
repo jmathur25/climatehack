@@ -8,9 +8,7 @@ from dgmr.common import GBlock, UpsampleGBlock
 from dgmr.layers import ConvGRU
 from huggingface_hub import PyTorchModelHubMixin
 import logging
-import sys
 
-sys.path.append("../../common")
 import common.utils as utils
 
 logger = logging.getLogger(__name__)
@@ -63,29 +61,36 @@ class Sampler(torch.nn.Module, PyTorchModelHubMixin):
         )
         self.up_g1 = UpsampleGBlock(
             input_channels=latent_channels,  # latent_channels (was output_channels)
-            output_channels=latent_channels // 2,  # latent_channels // 2 (was output_channels // 2)
+            output_channels=latent_channels
+            // 2,  # latent_channels // 2 (was output_channels // 2)
         )
 
         self.convGRU2 = ConvGRU(
             input_channels=latent_channels // 2
-            + context_channels // 2,  # latent_channels // 2 + context_channels // 2, (was output_channels // 2 + latent_channels // 2)
+            + context_channels
+            // 2,  # latent_channels // 2 + context_channels // 2, (was output_channels // 2 + latent_channels // 2)
             output_channels=context_channels // 2,
             kernel_size=3,
         )
         self.gru_conv_1x1_2 = spectral_norm(
             torch.nn.Conv2d(
                 in_channels=context_channels // 2,
-                out_channels=latent_channels // 2,  # latent_channels // 2, (was output_channels // 2)
+                out_channels=latent_channels
+                // 2,  # latent_channels // 2, (was output_channels // 2)
                 kernel_size=(1, 1),
             )
         )
         self.g2 = GBlock(
-            input_channels=latent_channels // 2,  # latent_channels // 2 (was output_channels // 2)
-            output_channels=latent_channels // 2,  # latent_channels // 2, (was output_channels // 2)
+            input_channels=latent_channels
+            // 2,  # latent_channels // 2 (was output_channels // 2)
+            output_channels=latent_channels
+            // 2,  # latent_channels // 2, (was output_channels // 2)
         )
         self.up_g2 = UpsampleGBlock(
-            input_channels=latent_channels // 2,  # latent_channels // 2 (was output_channels // 2)
-            output_channels=latent_channels // 4,  # latent_channels // 4 (was output_channels // 4)
+            input_channels=latent_channels
+            // 2,  # latent_channels // 2 (was output_channels // 2)
+            output_channels=latent_channels
+            // 4,  # latent_channels // 4 (was output_channels // 4)
         )
 
         self.convGRU3 = ConvGRU(
