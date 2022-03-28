@@ -2,18 +2,91 @@ import pyproj
 from scipy import fftpack
 import numpy as np
 import torch
+import common.loss_utils as loss_utils
 
-# OSGB is also called "OSGB 1936 / British National Grid -- United
-# Kingdom Ordnance Survey".  OSGB is used in many UK electricity
-# system maps, and is used by the UK Met Office UKV model.  OSGB is a
-# Transverse Mercator projection, using 'easting' and 'northing'
-# coordinates which are in meters.  See https://epsg.io/27700
-OSGB = 27700
 
-# WGS84 is short for "World Geodetic System 1984", used in GPS. Uses
-# latitude and longitude.
-WGS84 = 4326
-WGS84_CRS = f"EPSG:{WGS84}"
+def check_times(tstart, tend):
+    """
+    Given two times in as numpy datetimes, find out if they are 3 hours apart.
+    """
+    return int((tend - tstart) / np.timedelta64(1, "m")) == 175
+
+
+def warp_flow(img, flow):
+    """
+    Given an image and flow vectors, apply the flow to create a new image.
+    """
+    h, w = flow.shape[:2]
+    flow = -flow
+    flow[:, :, 0] += np.arange(w)
+    flow[:, :, 1] += np.arange(h)[:, np.newaxis]
+    res = cv2.remap(img, flow, None, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+    return res
+
+
+def get_msssim(x, y, average=True, inner_64=True):
+    """
+    A generic function to get the MS-SSIM for images. It will work with numpy arrays or
+    PyTorch tensors. MAKE SURE THE DATA IS NORMALIZED TO BE BETWEEN 0 AND 1024.
+    It can handle various shaped inputs.
+    (h x w): just get the MS-SSIM of two images
+    (t x h x w): get the MS-SSIM for a sequence of images
+    (b x t x h x w): get the MS-SSIM for batches of sequences of images
+
+    In the case where a batch/temporal dimension is provded, setting `average=True` will
+    simply average the results. Setting `average=False` means you want the MS-SSIM per
+    batch/timestep. In the case of (b x t x h x w), you'll get back something of shape
+    (b x t) which will be the MS-SSIM per (b,t).
+
+    `inner_64` means to get the MS-SSIM for the inner 64x64.
+
+    Note: this is different that using a loss function for backprop. Use `loss_utils`
+    for that. This function is mainly for analysis.
+    """
+    was_numpy = False
+    if isinstance(x, np.ndarray):
+        was_numpy = True
+        x = torch.FloatTensor(x)
+        y = torch.FloatTensor(y)
+    expected_shape = None
+    # now work with various shapes to make them of size 5
+    if len(x.shape) == 2:
+        # (h x w)
+        # these become (1 x 1 x h x w)
+        x = x.unsqueeze(dim=0).unsqueeze(dim=0)
+        y = y.unsqueeze(dim=0).unsqueeze(dim=0)
+        expected_shape = 1
+    elif len(x.shape) == 3:
+        # (t x h x w)
+        # these become (t x 1 x h x w)
+        t, h, w = x.shape
+        x = x.unsqueeze(dim=1)
+        y = y.unsqueeze(dim=1)
+        expected_shape = t
+    elif len(x.shape) == 4:
+        # (b x t x h x w)
+        # these become (b*t x 1 x h x w)
+        b, t, h, w = x.shape
+        x = x.reshape(b * t, h, w)
+        y = y.reshape(b * t, h, w)
+        x = x.unsqueeze(dim=1)
+        y = y.unsqueeze(dim=1)
+        expected_shape = (b, t)
+    else:
+        raise ValueError("Can only accept 2, 3, and 4-dimensional shapes")
+
+    if inner_64:
+        x = x[:, :, 32:96, 32:96]
+        y = y[:, :, 32:96, 32:96]
+    criterion = loss_utils.MS_SSIM(
+        data_range=1023.0, size_average=average, win_size=3, channel=1
+    )
+    scores = criterion(y, x)
+    if average is False:
+        scores = scores.reshape(expected_shape)
+    if was_numpy:
+        scores = scores.numpy()
+    return scores
 
 
 class Transformers:
@@ -22,6 +95,18 @@ class Transformers:
     Its good to make this only once, but need the
     option of updating them, due to out of data grids.
     """
+
+    # OSGB is also called "OSGB 1936 / British National Grid -- United
+    # Kingdom Ordnance Survey".  OSGB is used in many UK electricity
+    # system maps, and is used by the UK Met Office UKV model.  OSGB is a
+    # Transverse Mercator projection, using 'easting' and 'northing'
+    # coordinates which are in meters.  See https://epsg.io/27700
+    OSGB = 27700
+
+    # WGS84 is short for "World Geodetic System 1984", used in GPS. Uses
+    # latitude and longitude.
+    WGS84 = 4326
+    WGS84_CRS = f"EPSG:{WGS84}"
 
     def __init__(self):
         """Init"""
@@ -34,8 +119,12 @@ class Transformers:
         Make transformers
          Nice to only make these once, as it makes calling the functions below quicker
         """
-        self._osgb_to_lat_lon = pyproj.Transformer.from_crs(crs_from=OSGB, crs_to=WGS84)
-        self._lat_lon_to_osgb = pyproj.Transformer.from_crs(crs_from=WGS84, crs_to=OSGB)
+        self._osgb_to_lat_lon = pyproj.Transformer.from_crs(
+            crs_from=Transformers.OSGB, crs_to=Transformers.WGS84
+        )
+        self._lat_lon_to_osgb = pyproj.Transformer.from_crs(
+            crs_from=Transformers.WGS84, crs_to=Transformers.OSGB
+        )
 
     @property
     def osgb_to_lat_lon(self):
