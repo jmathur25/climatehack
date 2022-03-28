@@ -8,7 +8,7 @@ import torch
 
 class Checkpointer:
     def __init__(self, save_folder: pathlib.Path):
-        self.save_folder = save_folder
+        self.save_folder = save_folder.absolute()
         self.hist = save_folder / "hist.txt"
         self.hist.touch()
 
