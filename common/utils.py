@@ -3,6 +3,7 @@ from scipy import fftpack
 import numpy as np
 import torch
 import common.loss_utils as loss_utils
+import cv2
 
 
 def check_times(tstart, tend):
