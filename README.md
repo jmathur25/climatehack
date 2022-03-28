@@ -1,14 +1,15 @@
-# climatehack
+# Climatehack
 
+This is the repository for Illinois's Climatehack Team. We earned first place on the [leaderboard](https://climatehack.ai/compete/leaderboard/universities) with a final score of 0.87992. 
 
-`climatehack-submission/` is for submitting. It has a `submit.sh` that you can use to submit the current model. There is a `submission` folder that is zipped and it should run in a self-contained way. You can see I’ve included a copy of the DGMR repo there. Inside `submission` there is a `validate.py`. You can execute this file with `python validate.py` to see if the submission code properly runs.
+<p align='center'>
+    <img src="figs/final_leaderboard.png" width="500" alt="Final Leaderboard">
+</p>
 
-`common/` has basic utilities
-`data/` has the 300d sample and the full dataset
-`models/` has the proof of concept of DGMR but is otherwise useless
-`weights/` is where all weights are being saved
+An overview of our approach can be found [here](https://docs.google.com/presentation/d/1P_cv3R7gTRXG41wFPXT2lZe9E1GnKqtaJVqe-vsAvL0/edit?usp=sharing).
 
-In the repo root we have a bunch of files. Their names mostly explain what they do. The most important note might be that `train_dgmr_forecast=24_full.ipynb` seems to be weird… it loads data from disk but I found it was decreasing performance. I might have some bug with my disk data loader. The in_memory script is what I was working through and seems to work. Right now it is slightly modded cause I was trying to make it backprop MS-SSIM and it’s failing, but you can go thru and see for yourself.  
+Example predictions:
+![](figs/model_predictions.gif)
 
 # Setup
 ```bash
@@ -17,14 +18,29 @@ conda activate climatehack
 python -m ipykernel install --user --name=climatehack
 ```
 
-First, download data by running `data/download_data.ipynb`. Alternatively, you can find preprocessed data files [here](https://drive.google.com/drive/folders/1JkPKjOBtm3dlOl2fRTvaLkSu7KnZsJGw?usp=sharing). We used `train.npz` and `test.npz`. They consist of data temporally cropped from 10am to 4pm UK time across the entire dataset. You could also use `data_good_sun_2020.npz` and `data_good_sun_2021.npz`, which consist of all samples where the sun elevation is at least 10 degrees.
+First, download data by running `data/download_data.ipynb`. Alternatively, you can find preprocessed data files [here](https://drive.google.com/drive/folders/1JkPKjOBtm3dlOl2fRTvaLkSu7KnZsJGw?usp=sharing). Save them into the `data` folder. We used `train.npz` and `test.npz`. They consist of data temporally cropped from 10am to 4pm UK time across the entire dataset. You could also use `data_good_sun_2020.npz` and `data_good_sun_2021.npz`, which consist of all samples where the sun elevation is at least 10 degrees.
 
 
 # Best Submission
-Our best submission earned scores upwards of 0.85 on the Climatehack [leaderboard](https://climatehack.ai/compete/leaderboard).
+Our best submission earned scores exceeding 0.85 on the Climatehack [leaderboard](https://climatehack.ai/compete/leaderboard). It is relatively simple and uses the `fastai` library to pick a base model, optimizer, and learning rate scheduler. After some experimentation, we chose `xse_resnext50_deeper`. We turned it into a UNET and trained it. More info is in the [slides](https://docs.google.com/presentation/d/1P_cv3R7gTRXG41wFPXT2lZe9E1GnKqtaJVqe-vsAvL0/edit?usp=sharing).
+
+To train:
+```bash
+cd best-submission
+bash train.sh
+```
+
+To submit, first move the trained model `xse_resnext50_deeper.pth` into `best-submission/submission`.
+```bash
+cd best-submission
+python doxa_cli.py user login
+bash submit.sh
+```
+
+There is a file `best-submission/test_and_visualize.ipynb` to test the model and visualize results in a nice animation. This is how we produced the animations found in `figs/model_predictions.gif`.
 
 # Experiments
-We conducted several experiments that showed improvements on a strong baseline. The baseline was OpenClimateFix's skillful nowcasting [repo](https://github.com/openclimatefix/skillful_nowcasting), which itself is a reimplementation of Deepmind's precipitation forecasting GAN. This baseline is more-or-less copied to `experiments/dgmr-original`. This baseline will actually train to a score greater than 0.8 on the Climatehack [leaderboard](https://climatehack.ai/compete/leaderboard). We didn't have time to properly test these experiments on top of our best model, but we suspect they would improve results. The experiments are summarized below:
+We conducted several experiments that showed improvements on a strong baseline. The baseline was OpenClimateFix's skillful nowcasting [repo](https://github.com/openclimatefix/skillful_nowcasting), which itself is a implementation of Deepmind's precipitation forecasting GAN. This baseline is more-or-less copied to `experiments/dgmr-original`. One important difference is that instead of training the GAN, we just train the generator. This was doing well for us and training the GAN had much slower convergence. This baseline will actually train to a score greater than 0.8 on the Climatehack [leaderboard](https://climatehack.ai/compete/leaderboard). We didn't have time to properly test these experiments on top of our best model, but we suspect they would improve results. The experiments are summarized below:
 
 Experiment | Description | Results |
 --- | --- | --- |

@@ -1,5 +1,0 @@
-xarray
-zarr
-metnet
-gcsfs
-dask
