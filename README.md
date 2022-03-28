@@ -18,7 +18,7 @@ conda activate climatehack
 python -m ipykernel install --user --name=climatehack
 ```
 
-First, download data by running `data/download_data.ipynb`. Alternatively, you can find preprocessed data files [here](https://drive.google.com/drive/folders/1JkPKjOBtm3dlOl2fRTvaLkSu7KnZsJGw?usp=sharing). Save them into the `data` folder. We used `train.npz` and `test.npz`. They consist of data temporally cropped from 10am to 4pm UK time across the entire dataset. You could also use `data_good_sun_2020.npz` and `data_good_sun_2021.npz`, which consist of all samples where the sun elevation is at least 10 degrees.
+First, download data by running `data/download_data.ipynb`. Alternatively, you can find preprocessed data files [here](https://drive.google.com/drive/folders/1JkPKjOBtm3dlOl2fRTvaLkSu7KnZsJGw?usp=sharing). Save them into the `data` folder. We used `train.npz` and `test.npz`. They consist of data temporally cropped from 10am to 4pm UK time across the entire dataset. You could also use `data_good_sun_2020.npz` and `data_good_sun_2021.npz`, which consist of all samples where the sun elevation is at least 10 degrees. Because these crops produced datasets that could fit in-memory, all our dataloaders work in-memory.
 
 
 # Best Submission
@@ -37,7 +37,7 @@ python doxa_cli.py user login
 bash submit.sh
 ```
 
-There is a file `best-submission/test_and_visualize.ipynb` to test the model and visualize results in a nice animation. This is how we produced the animations found in `figs/model_predictions.gif`.
+Also, check out `best-submission/test_and_visualize.ipynb` to test the model and visualize results in a nice animation. This is how we produced the animations found in `figs/model_predictions.gif`.
 
 # Experiments
 We conducted several experiments that showed improvements on a strong baseline. The baseline was OpenClimateFix's skillful nowcasting [repo](https://github.com/openclimatefix/skillful_nowcasting), which itself is a implementation of Deepmind's precipitation forecasting GAN. This baseline is more-or-less copied to `experiments/dgmr-original`. One important difference is that instead of training the GAN, we just train the generator. This was doing well for us and training the GAN had much slower convergence. This baseline will actually train to a score greater than 0.8 on the Climatehack [leaderboard](https://climatehack.ai/compete/leaderboard). We didn't have time to properly test these experiments on top of our best model, but we suspect they would improve results. The experiments are summarized below:
@@ -56,4 +56,4 @@ python doxa_cli.py user login
 bash submit.sh
 ```
 
-
+Use `experiments/test_and_visualize.ipynb` to test the model and visualize results in a nice animation.
