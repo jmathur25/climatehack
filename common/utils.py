@@ -90,6 +90,11 @@ def get_msssim(x, y, average=True, inner_64=True):
     return scores
 
 
+def count_parameters(model):
+    """Return number of parameters in a model"""
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
 class Transformers:
     """
     Class to store transformation from one Grid to another.
