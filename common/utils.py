@@ -44,6 +44,9 @@ def get_msssim(x, y, average=True, inner_64=True):
     Note: this is different that using a loss function for backprop. Use `loss_utils`
     for that. This function is mainly for analysis.
     """
+    if inner_64:
+        # need to pass a (128 x 128) image for inner 64x64 crop
+        assert x.shape[-2:] == (128, 128)
     was_numpy = False
     if isinstance(x, np.ndarray):
         was_numpy = True

@@ -2,10 +2,12 @@
 I rolled my own checkpointing for no good reason. Oops.
 """
 import os
+import pathlib
+import torch
 
 
 class Checkpointer:
-    def __init__(self, save_folder):
+    def __init__(self, save_folder: pathlib.Path):
         self.save_folder = save_folder
         self.hist = save_folder / "hist.txt"
         self.hist.touch()
@@ -34,7 +36,7 @@ class Checkpointer:
                 best_fname = fname
         if best_fname is None:
             return None, None, None
-        return FOLDER / best_fname, best_epoch, best_loss
+        return self.save_folder / best_fname, best_epoch, best_loss
 
     def save_checkpoint(self, model, optimizer, epoch, avg_loss):
         """
@@ -50,7 +52,8 @@ class Checkpointer:
             }
             avg_loss = round(avg_loss, 4)
             torch.save(
-                checkpoint, FOLDER / f"checkpoint_epochs={epoch}_loss={avg_loss}.pt"
+                checkpoint,
+                self.save_folder / f"checkpoint_epochs={epoch}_loss={avg_loss}.pt",
             )
             if best_fpath is not None:
                 print("Deleting old best:", best_fpath)
