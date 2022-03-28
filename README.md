@@ -21,7 +21,7 @@ First, download data by running `data/download_data.ipynb`. Alternatively, you c
 
 
 # Best Submission
-
+Our best submission earned scores upwards of 0.85 on the Climatehack [leaderboard](https://climatehack.ai/compete/leaderboard).
 
 # Experiments
 We conducted several experiments that showed improvements on a strong baseline. The baseline was OpenClimateFix's skillful nowcasting [repo](https://github.com/openclimatefix/skillful_nowcasting), which itself is a reimplementation of Deepmind's precipitation forecasting GAN. This baseline is more-or-less copied to `experiments/dgmr-original`. This baseline will actually train to a score greater than 0.8 on the Climatehack [leaderboard](https://climatehack.ai/compete/leaderboard). We didn't have time to properly test these experiments on top of our best model, but we suspect they would improve results. The experiments are summarized below:
@@ -32,5 +32,12 @@ DCT-Trick | Inspired by [this](https://proceedings.neurips.cc/paper/2018/file/7a
 Denoising | We noticed a lot of blocky artifacts in predictions. These artifacts are reminiscent of JPEG/H.264 compression artifacts. We show a comparison of these artifacts in the [slides](https://docs.google.com/presentation/d/1P_cv3R7gTRXG41wFPXT2lZe9E1GnKqtaJVqe-vsAvL0/edit?usp=sharing). We found a pretrained neural network to fix them. This can definitely be done better, but we show a proof-of-concept. | No performance drop, small visual improvement. The slides have an example. |
 CoordConv | Meteorological phenomenon are correlated with geographic coordinates. We add 2 input channels for the geographic coordinates in OSGB form. | +0.0072 MS-SSIM improvement |
 Optical Flow | Optical flow does well for the first few timesteps. We add 2 input channels for the optical flow vectors. | +0.0034 MS-SSIM improvement |
+
+The folder `experiments/climatehack-submission` was used to submit these experiments.
+```bash
+cd experiments/climatehack-submission
+python doxa_cli.py user login
+bash submit.sh
+```
 
 
